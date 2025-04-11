@@ -7,8 +7,12 @@ function App() {
   const [isDragging, setIsDragging] = useState(false);
   const [filename, setFilename] = useState(null);
   const [transcript, setTranscript] = useState('');
+  const [summary, setSummary] = useState('');
+  const [ocrImages, setOcrImages] = useState([]);
+  const [translatedText, setTranslatedText] = useState('');
+  const [ttsAudioUrl, setTtsAudioUrl] = useState('');
   const [uploadProgress, setUploadProgress] = useState(0);
-  const [loadingTranscript, setLoadingTranscript] = useState(false);
+  const [loading, setLoading] = useState(false);
 
   const handleDrop = async (e) => {
     e.preventDefault();
@@ -28,7 +32,7 @@ function App() {
 
   const uploadFile = async (file) => {
     setStatus('Uploading...');
-    setTranscript('');
+    resetOutputs();
     const formData = new FormData();
     formData.append('file', file);
 
@@ -64,23 +68,31 @@ function App() {
     }
   };
 
-  const handleGetTranscript = async () => {
+  const handleGetOutputs = async () => {
     if (!filename) return;
-    setLoadingTranscript(true);
+    setLoading(true);
     try {
-      const res = await fetch(`http://127.0.0.1:8000/transcribe?filename=${encodeURIComponent(filename)}`);
+      const res = await fetch(`http://127.0.0.1:8000/process?filename=${encodeURIComponent(filename)}`);
       const data = await res.json();
-      if (data.transcription) {
-        setTranscript(data.transcription);
-      } else {
-        setTranscript('Transcription failed.');
-      }
+      if (data.transcription) setTranscript(data.transcription);
+      if (data.summary) setSummary(data.summary);
+      if (data.ocr_images) setOcrImages(data.ocr_images);
+      if (data.translated_text) setTranslatedText(data.translated_text);
+      if (data.tts_audio_url) setTtsAudioUrl(data.tts_audio_url);
     } catch (error) {
-      setTranscript('Transcription failed.');
+      setStatus({ message: 'Processing failed', type: 'error' });
       console.error(error);
     } finally {
-      setLoadingTranscript(false);
+      setLoading(false);
     }
+  };
+
+  const resetOutputs = () => {
+    setTranscript('');
+    setSummary('');
+    setOcrImages([]);
+    setTranslatedText('');
+    setTtsAudioUrl('');
   };
 
   const handleDragOver = (e) => {
@@ -96,7 +108,7 @@ function App() {
   return (
     <main className="app-container">
       <section className="content-wrapper">
-        <h1 className="app-title">📚 AI Lecture Capture</h1>
+        <h1 className="app-title">AI Lecture Capture</h1>
         <div
           className={`drop-zone ${isDragging ? 'dragging' : ''}`}
           onClick={() => fileInputRef.current.click()}
@@ -114,45 +126,67 @@ function App() {
           </p>
         </div>
 
-        <input
-          type="file"
-          ref={fileInputRef}
-          onChange={handleFileChange}
-          style={{ display: 'none' }}
-        />
+        <input type="file" ref={fileInputRef} onChange={handleFileChange} style={{ display: 'none' }} />
 
         <div className="progress-wrapper">
           {uploadProgress > 0 && (
             <div className="progress-bar">
-              <div
-                className="progress-fill"
-                style={{ width: `${uploadProgress}%` }}
-              />
+              <div className="progress-fill" style={{ width: `${uploadProgress}%` }} />
             </div>
           )}
         </div>
 
-        {filename && <p className="file-info">🎥 Uploaded: <strong>{filename}</strong></p>}
+        {filename && <p className="file-info">Uploaded: <strong>{filename}</strong></p>}
 
         <div className="status-bar">
-          {status && (
-            <div className={`status ${status.type}`}>{status.message}</div>
-          )}
+          {status && <div className={`status ${status.type}`}>{status.message}</div>}
         </div>
 
         {filename && (
-          <button className="transcribe-button" onClick={handleGetTranscript} disabled={loadingTranscript}>
-            {loadingTranscript ? 'Transcribing...' : '✨ Get Transcript'}
+          <button className="transcribe-button" onClick={handleGetOutputs} disabled={loading}>
+            {loading ? 'Processing...' : 'Generate Insights'}
           </button>
         )}
+
+        {summary && (
+          <div className="output-box">
+            <h2>Summary:</h2>
+            <p>{summary}</p>
+          </div>
+        )}
+
         {transcript && (
-          <div className="transcript-box">
-            <h2>📝 Transcription:</h2>
+          <div className="output-box">
+            <h2>Transcription:</h2>
             <p>{transcript}</p>
+          </div>
+        )}
+
+        {ocrImages.length > 0 && (
+          <div className="output-box">
+            <h2>OCR Images:</h2>
+            {ocrImages.map((url, index) => (
+              <img key={index} src={url} alt={`OCR ${index}`} className="ocr-image" />
+            ))}
+          </div>
+        )}
+
+        {translatedText && (
+          <div className="output-box">
+            <h2>Translated Text:</h2>
+            <p>{translatedText}</p>
+          </div>
+        )}
+
+        {ttsAudioUrl && (
+          <div className="output-box">
+            <h2>Text to Speech:</h2>
+            <audio controls src={ttsAudioUrl}></audio>
           </div>
         )}
       </section>
     </main>
   );
 }
+
 export default App;
