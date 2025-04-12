@@ -5,7 +5,7 @@ __pycache__/
 .env
 *.log
 data/uploads/
-
+data
 # Node / React
 frontend/node_modules/
 frontend/build/
