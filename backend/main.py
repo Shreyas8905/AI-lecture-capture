@@ -6,7 +6,7 @@ from flask_cors import CORS
 from whisper_service import transcribe_audio
 from ocr_service import extract_text_from_image
 from llama_summarizer import summarize_text
-from translator_nllb import translate_text
+from translator_google import translate_text
 from tts_service import text_to_speech
 
 app = Flask(__name__)
@@ -46,7 +46,7 @@ def upload_video():
 @app.route("/process", methods=["GET"])
 def process_all():
     filename = request.args.get("filename")
-    target_lang = request.args.get("lang", "ta")  # Default to Tamil
+    target_lang = request.args.get("lang", "hi")  # Default to Hindi
 
     if not filename:
         return jsonify({"error": "Filename not provided"}), 400
@@ -59,29 +59,39 @@ def process_all():
         # Step 1: Transcription
         transcript = transcribe_audio(file_path)
 
-        # Step 2: Summarization (optional)
+        # Step 2: Summarization
         summary = summarize_text(transcript)
 
-        # Step 3: Translation of FULL TRANSCRIPTION (not summary)
+        # Step 3: Translation of full transcription
         translated_transcription = translate_text(transcript, target_lang)
 
-        # Step 4: Text-to-Speech of translated transcription
+        # Step 4: Text-to-Speech
         audio_path = text_to_speech(translated_transcription, lang=target_lang)
 
-        # Step 5: OCR from board frames (optional)
+        # Step 5: OCR
         ocr_results = []
-        frame_dir = os.path.join("data", "frames", os.path.splitext(filename)[0])
+        video_id = os.path.splitext(filename)[0]
+        frame_dir = os.path.join("data", "frames", video_id)
+        ocr_output_dir = os.path.join("data", "ocr_outputs", video_id)
+        os.makedirs(ocr_output_dir, exist_ok=True)
+
         if os.path.exists(frame_dir):
             for img_file in sorted(os.listdir(frame_dir)):
                 if img_file.lower().endswith((".png", ".jpg", ".jpeg")):
                     img_path = os.path.join(frame_dir, img_file)
-                    text = extract_text_from_image(img_path)
+                    extracted_text = extract_text_from_image(img_path)
+                    
+                    # Save OCR result
+                    ocr_txt_path = os.path.join(ocr_output_dir, f"{os.path.splitext(img_file)[0]}.txt")
+                    with open(ocr_txt_path, "w", encoding="utf-8") as f:
+                        f.write(extracted_text)
+
                     ocr_results.append({
                         "image": img_file,
-                        "extracted_text": text
+                        "extracted_text": extracted_text
                     })
 
-        # Final Output
+        # Final JSON response
         return jsonify({
             "transcription": transcript,
             "summary": summary,
