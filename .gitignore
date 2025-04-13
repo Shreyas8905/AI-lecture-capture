@@ -12,3 +12,4 @@ frontend/build/
 *.env.local
 .venv
 uploads
+venv
